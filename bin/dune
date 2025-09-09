@@ -1,6 +1,7 @@
 (executable
  (name main)
+ ;(preprocess (pps ppx_metaocaml))
  (libraries dynlink metaocaml)
- (flags (:standard -w -32))
- (modes native)
-)
+ (flags
+  (:standard -w -32))
+ (modes native))
