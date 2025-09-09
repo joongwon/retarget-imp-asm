@@ -1,0 +1,6 @@
+(executable
+ (name main)
+ (libraries dynlink metaocaml)
+ (flags (:standard -w -32))
+ (modes native)
+)
