@@ -1,8 +1,5 @@
 open Codelib
 
-let lift_int (n : int) = .<n>.
-let lift_string (s : string) = .<s>.
-
 let hashtbl_find_staged (type a c)
     ~(lift_key : c -> c code)
     (tbl : (c, a code) Hashtbl.t) : (c -> a) code =
@@ -12,6 +9,33 @@ let hashtbl_find_staged (type a c)
       tbl
       .<raise Not_found>.)>.
 
+let memo (type key data)
+    ~(lift_key : key -> key code)
+    ~(init : key)
+    (step : (key -> data code) -> (key -> data code))
+    : ((key -> data) -> (key -> data)) code =
+  .<fun cache -> .~(
+    let table = Hashtbl.create 17 in
+    let todos = Queue.create () in
+    Queue.add init todos;
+    while not (Queue.is_empty todos) do
+      let k = Queue.pop todos in
+      if not (Hashtbl.mem table k) then
+        let v = step (fun k' ->
+          if not (Hashtbl.mem table k') then Queue.add k' todos;
+          .<cache .~(lift_key k')>.) k
+        in
+        Hashtbl.replace table k v;
+    done;
+    .<fun k -> .~(
+    Hashtbl.fold
+      (fun k' v acc -> .<if k = .~(lift_key k') then .~v else .~acc>.)
+      table
+      .<raise Not_found>.
+    )>.
+  )>.
+
+  (*
 let dissolve (type a b c)
     ~(lift_key : c -> c code)
     ~(key_of : a -> c)
@@ -36,3 +60,4 @@ let dissolve (type a b c)
     in
     loop [n0];
     hashtbl_find_staged ~lift_key table)>.
+    *)

@@ -70,22 +70,28 @@ module S = struct
 end
 
 let intp_st : S.Pgm.t =
-  While
-    ( Read (Read (Int 0)),
-      Seq
-        ( If
-            ( Bop (Eq, Read (Read (Int 0)), Int 1),
-              Write
-                ( Int 1,
-                  Bop (Add, Read (Int 1), Read (Bop (Add, Read (Int 0), Int 1)))
-                ),
-              If
-                ( Bop (Eq, Read (Read (Int 0)), Int 2),
+  Seq
+    ( While
+        ( Bop (Sub, Read (Int 0), Int 2),
+          Write (Int 0, Bop (Add, Read (Int 0), Int 1)) ),
+      While
+        ( Read (Read (Int 0)),
+          Seq
+            ( If
+                ( Bop (Eq, Read (Read (Int 0)), Int 1),
                   Write
                     ( Int 1,
                       Bop
-                        ( Mul,
+                        ( Add,
                           Read (Int 1),
                           Read (Bop (Add, Read (Int 0), Int 1)) ) ),
-                  Skip ) ),
-          Write (Int 0, Bop (Add, Read (Int 0), Int 2)) ) )
+                  If
+                    ( Bop (Eq, Read (Read (Int 0)), Int 2),
+                      Write
+                        ( Int 1,
+                          Bop
+                            ( Mul,
+                              Read (Int 1),
+                              Read (Bop (Add, Read (Int 0), Int 1)) ) ),
+                      Skip ) ),
+              Write (Int 0, Bop (Add, Read (Int 0), Int 2)) ) ) )

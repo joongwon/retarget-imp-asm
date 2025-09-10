@@ -89,89 +89,91 @@ module Val = struct
         in
         lower_ok && upper_ok
 
-  let add (i1 : t) (i2 : t) : t =
-    let add_bound b1 b2 =
-      match (b1, b2) with
-      | Fin n1, Fin n2 -> Fin (n1 + n2)
-      | Fin _, inf | inf, Fin _ -> inf
-      | inf, _ -> inf
-    in
-    match (i1, i2) with
-    | Bot, _ | _, Bot -> Bot
-    | Intv (l1, u1), Intv (l2, u2) -> Intv (add_bound l1 l2, add_bound u1 u2)
+  module Op = struct
+    let add (i1 : t) (i2 : t) : t =
+      let add_bound b1 b2 =
+        match (b1, b2) with
+        | Fin n1, Fin n2 -> Fin (n1 + n2)
+        | Fin _, inf | inf, Fin _ -> inf
+        | inf, _ -> inf
+      in
+      match (i1, i2) with
+      | Bot, _ | _, Bot -> Bot
+      | Intv (l1, u1), Intv (l2, u2) -> Intv (add_bound l1 l2, add_bound u1 u2)
 
-  let sub (i1 : t) (i2 : t) : t =
-    match (i1, i2) with
-    | Bot, _ | _, Bot -> Bot
-    | Intv (l1, u1), Intv (l2, u2) ->
-        let l =
-          match (l1, u2) with
-          | Inf, _ | _, Inf -> Inf
-          | Fin n1, Fin n2 -> Fin (n1 - n2)
-        in
-        let u =
-          match (u1, l2) with
-          | Inf, _ | _, Inf -> Inf
-          | Fin n1, Fin n2 -> Fin (n1 - n2)
-        in
-        Intv (l, u)
+    let sub (i1 : t) (i2 : t) : t =
+      match (i1, i2) with
+      | Bot, _ | _, Bot -> Bot
+      | Intv (l1, u1), Intv (l2, u2) ->
+          let l =
+            match (l1, u2) with
+            | Inf, _ | _, Inf -> Inf
+            | Fin n1, Fin n2 -> Fin (n1 - n2)
+          in
+          let u =
+            match (u1, l2) with
+            | Inf, _ | _, Inf -> Inf
+            | Fin n1, Fin n2 -> Fin (n1 - n2)
+          in
+          Intv (l, u)
 
-  let mul (i1 : t) (i2 : t) : t =
-    match (i1, i2) with
-    | Bot, _ | _, Bot -> Bot
-    | Intv (l1, u1), Intv (l2, u2) -> (
-        let l1 = match l1 with Inf -> `MInf | Fin n -> `Fin n in
-        let u1 = match u1 with Inf -> `PInf | Fin n -> `Fin n in
-        let l2 = match l2 with Inf -> `MInf | Fin n -> `Fin n in
-        let u2 = match u2 with Inf -> `PInf | Fin n -> `Fin n in
-        let bmul b1 b2 =
-          match (b1, b2) with
-          | `Fin n1, `Fin n2 -> `Fin (n1 * n2)
-          | (`PInf, `Fin n | `Fin n, `PInf) when n > 0 -> `PInf
-          | (`PInf, `Fin n | `Fin n, `PInf) when n < 0 -> `MInf
-          | `PInf, `Fin _ | `Fin _, `PInf -> `Fin 0
-          | (`MInf, `Fin n | `Fin n, `MInf) when n < 0 -> `PInf
-          | (`MInf, `Fin n | `Fin n, `MInf) when n > 0 -> `MInf
-          | `MInf, `Fin _ | `Fin _, `MInf -> `Fin 0
-          | `PInf, `MInf | `MInf, `PInf -> `MInf
-          | `PInf, `PInf -> `PInf
-          | `MInf, `MInf -> `PInf
-        in
-        let blte b1 b2 =
-          match (b1, b2) with
-          | `MInf, _ -> true
-          | _, `PInf -> true
-          | `Fin n1, `Fin n2 -> n1 <= n2
-          | _ -> false
-        in
-        let cands = [ bmul l1 l2; bmul l1 u2; bmul u1 l2; bmul u1 u2 ] in
-        let l =
-          List.fold_left
-            (fun acc b -> if blte b acc then b else acc)
-            `PInf cands
-        in
-        let u =
-          List.fold_left
-            (fun acc b -> if blte acc b then b else acc)
-            `MInf cands
-        in
-        match (l, u) with
-        | `PInf, _ | _, `MInf -> Bot
-        | ((`MInf | `Fin _) as l), ((`PInf | `Fin _) as u) ->
-            Intv
-              ( (match l with `MInf -> Inf | `Fin n -> Fin n),
-                match u with `PInf -> Inf | `Fin n -> Fin n ))
+    let mul (i1 : t) (i2 : t) : t =
+      match (i1, i2) with
+      | Bot, _ | _, Bot -> Bot
+      | Intv (l1, u1), Intv (l2, u2) -> (
+          let l1 = match l1 with Inf -> `MInf | Fin n -> `Fin n in
+          let u1 = match u1 with Inf -> `PInf | Fin n -> `Fin n in
+          let l2 = match l2 with Inf -> `MInf | Fin n -> `Fin n in
+          let u2 = match u2 with Inf -> `PInf | Fin n -> `Fin n in
+          let bmul b1 b2 =
+            match (b1, b2) with
+            | `Fin n1, `Fin n2 -> `Fin (n1 * n2)
+            | (`PInf, `Fin n | `Fin n, `PInf) when n > 0 -> `PInf
+            | (`PInf, `Fin n | `Fin n, `PInf) when n < 0 -> `MInf
+            | `PInf, `Fin _ | `Fin _, `PInf -> `Fin 0
+            | (`MInf, `Fin n | `Fin n, `MInf) when n < 0 -> `PInf
+            | (`MInf, `Fin n | `Fin n, `MInf) when n > 0 -> `MInf
+            | `MInf, `Fin _ | `Fin _, `MInf -> `Fin 0
+            | `PInf, `MInf | `MInf, `PInf -> `MInf
+            | `PInf, `PInf -> `PInf
+            | `MInf, `MInf -> `PInf
+          in
+          let blte b1 b2 =
+            match (b1, b2) with
+            | `MInf, _ -> true
+            | _, `PInf -> true
+            | `Fin n1, `Fin n2 -> n1 <= n2
+            | _ -> false
+          in
+          let cands = [ bmul l1 l2; bmul l1 u2; bmul u1 l2; bmul u1 u2 ] in
+          let l =
+            List.fold_left
+              (fun acc b -> if blte b acc then b else acc)
+              `PInf cands
+          in
+          let u =
+            List.fold_left
+              (fun acc b -> if blte acc b then b else acc)
+              `MInf cands
+          in
+          match (l, u) with
+          | `PInf, _ | _, `MInf -> Bot
+          | ((`MInf | `Fin _) as l), ((`PInf | `Fin _) as u) ->
+              Intv
+                ( (match l with `MInf -> Inf | `Fin n -> Fin n),
+                  match u with `PInf -> Inf | `Fin n -> Fin n ))
 
-  let eq (i1 : t) (i2 : t) : t =
-    match (i1, i2) with
-    | Bot, _ | _, Bot -> Bot
-    | Intv (Fin l1, Fin u1), Intv (Fin l2, Fin u2)
-      when l1 = u1 && l2 = u2 && l1 = l2 ->
-        Intv (Fin 1, Fin 1)
-    | _ when meet i1 i2 = Bot -> Intv (Fin 0, Fin 0)
-    | _ -> Intv (Fin 0, Fin 1)
+    let eq (i1 : t) (i2 : t) : t =
+      match (i1, i2) with
+      | Bot, _ | _, Bot -> Bot
+      | Intv (Fin l1, Fin u1), Intv (Fin l2, Fin u2)
+        when l1 = u1 && l2 = u2 && l1 = l2 ->
+          Intv (Fin 1, Fin 1)
+      | _ when meet i1 i2 = Bot -> Intv (Fin 0, Fin 0)
+      | _ -> Intv (Fin 0, Fin 1)
 
-  let not (i : t) : t = eq i (Intv (Fin 0, Fin 0))
+    let not (i : t) : t = eq i (Intv (Fin 0, Fin 0))
+  end
 end
 
 module Mem = struct
@@ -191,42 +193,6 @@ module Mem = struct
 
   let abstract (m : S.Mem.t) : t = Some (List.map Val.abstract m)
 
-  let read (m : t) (addr : Val.t) : Val.t =
-    match (m, addr) with
-    | None, _ | _, Bot -> Val.bot
-    | Some m, Intv (l, u) ->
-        let filter =
-          match (l, u) with
-          | Fin a, Fin b -> fun i -> a <= i && i <= b
-          | Fin a, Inf -> fun i -> a <= i
-          | Inf, Fin b -> fun i -> i <= b
-          | Inf, Inf -> fun _ -> true
-        in
-        let candidates = List.filteri (fun i _ -> filter i) m in
-        List.fold_left Val.join Val.bot candidates
-
-  let write (m : t) (addr : Val.t) (v : Val.t) : t =
-    match (m, addr, v) with
-    | None, _, _ | _, Bot, _ | _, _, Bot -> None
-    | Some m, Intv (l, u), v ->
-        let sz = List.length m in
-        let cnt, filter =
-          match (l, u) with
-          | Fin a, Fin b ->
-              (Int.min sz b - Int.max 0 a + 1, fun i -> a <= i && i <= b)
-          | Fin a, Inf -> (sz - Int.max 0 a, fun i -> a <= i)
-          | Inf, Fin b -> (Int.min sz b + 1, fun i -> i <= b)
-          | Inf, Inf -> (sz, fun _ -> true)
-        in
-        if cnt = 0 then None
-        else if cnt = 1 then
-          Some (List.mapi (fun i old_v -> if filter i then v else old_v) m)
-        else
-          Some
-            (List.mapi
-               (fun i old_v -> if filter i then Val.join old_v v else old_v)
-               m)
-
   let join (m1 : t) (m2 : t) : t =
     match (m1, m2) with
     | None, m | m, None -> m
@@ -244,13 +210,45 @@ module Mem = struct
     | None, _ -> true
     | _, None -> false
     | Some m1, Some m2 -> List.for_all2 Val.leq m1 m2
+
+  module Op = struct
+    let read (m : t) (addr : Val.t) : Val.t =
+      match (m, addr) with
+      | None, _ | _, Bot -> Val.bot
+      | Some m, Intv (l, u) ->
+          let filter =
+            match (l, u) with
+            | Fin a, Fin b -> fun i -> a <= i && i <= b
+            | Fin a, Inf -> fun i -> a <= i
+            | Inf, Fin b -> fun i -> i <= b
+            | Inf, Inf -> fun _ -> true
+          in
+          let candidates = List.filteri (fun i _ -> filter i) m in
+          List.fold_left Val.join Val.bot candidates
+
+    let write (m : t) (addr : Val.t) (v : Val.t) : t =
+      match (m, addr, v) with
+      | None, _, _ | _, Bot, _ | _, _, Bot -> None
+      | Some m, Intv (l, u), v ->
+          let sz = List.length m in
+          let cnt, filter =
+            match (l, u) with
+            | Fin a, Fin b ->
+                (Int.min sz b - Int.max 0 a + 1, fun i -> a <= i && i <= b)
+            | Fin a, Inf -> (sz - Int.max 0 a, fun i -> a <= i)
+            | Inf, Fin b -> (Int.min sz b + 1, fun i -> i <= b)
+            | Inf, Inf -> (sz, fun _ -> true)
+          in
+          if cnt = 0 then None
+          else if cnt = 1 then
+            Some (List.mapi (fun i old_v -> if filter i then v else old_v) m)
+          else
+            Some
+              (List.mapi
+                 (fun i old_v -> if filter i then Val.join old_v v else old_v)
+                 m)
+  end
 end
-
-let filter_zero (v : Val.t) (m : Mem.t) : Mem.t =
-  if Val.leq (Val.abstract 0) v then m else Mem.bot
-
-let filter_nonzero (v : Val.t) (m : Mem.t) : Mem.t =
-  if Val.leq v (Val.abstract 0) then Mem.bot else m
 
 let encode : T.Pgm.t * Val.t -> Mem.t =
  fun (prog, input) ->

@@ -63,41 +63,22 @@ let solve (type b) ~(d : b d) ~(key_of : b -> 'c)
   loop [ k ];
   Hashtbl.find_opt cache_out k |> Option.value ~default:D.bot
 
-let mk_key_of (type a) () : a -> int =
+let mk_key (type a) () : (a -> int) * (int -> a) =
   let tbl = Hashtbl.create 17 in
   let next = ref 0 in
-  fun c ->
-    match Hashtbl.find_opt tbl c with
-    | Some k -> k
-    | None ->
-        let k = !next in
-        incr next;
-        Hashtbl.add tbl c k;
-        k
+  ( (fun c ->
+      match Hashtbl.find_opt tbl c with
+      | Some k -> k
+      | None ->
+          let k = !next in
+          incr next;
+          Hashtbl.add tbl c k;
+          k),
+    fun k ->
+      Option.get
+      @@ Hashtbl.fold (fun c k' acc -> if k = k' then Some c else acc) tbl None
+  )
 
-(*
-(* unsound erasure of dissolve *)
-let dissolve (type a b c)
-    ~(key_of : a -> c)
-    (step : (a -> b -> b) -> (a -> b -> b))
-    (n0 : a) : (c -> b -> b) -> (c -> b -> b) =
-  fun cache ->
-    let table = Hashtbl.create 17 in
-    let rec loop todos =
-      if List.length todos = 0 then ()
-      else
-        let new_todos = ref [] in
-        List.iter (fun n ->
-          let f = step (fun n' ->
-            let k' = key_of n' in
-            if not (Hashtbl.mem table k') then
-              new_todos := n' :: !new_todos;
-            cache k') n
-          in
-          Hashtbl.replace table (key_of n) f;
-        ) todos;
-        loop (!new_todos |> List.sort_uniq compare)
-    in
-    loop [n0];
-    Hashtbl.find table
-    *)
+let dissolve (type key arg data) ~(of_key : key -> arg) ~(key_of : arg -> key)
+    (step : (arg -> data) -> arg -> data) : (key -> data) -> key -> data =
+ fun cache n -> step (fun n' -> cache (key_of n')) (of_key n)
