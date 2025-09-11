@@ -10,58 +10,97 @@ end
 type 't d = (module D with type t = 't)
 
 let solve (type b) ~(d : b d) ~(key_of : b -> 'c)
+    (step : ('a -> b -> b) -> 'a -> b -> b) (c0 : 'a) (m_in0 : b) : b =
+  let module D = (val d) in
+  let cache_in = Hashtbl.create 17 in
+  let cache_out = Hashtbl.create 17 in
+  let k = (c0, key_of m_in0) in
+  Hashtbl.replace cache_in k m_in0;
+  let changed = ref true in
+  while
+    !changed
+  do
+    changed := false;
+    cache_in |> Hashtbl.iter (fun ((c, _) as k) m_in ->
+      Format.printf "  IN: %a\n" Adom.Mem.pp (Obj.magic m_in);
+      let m_out =
+        step
+          (fun c' m_in' ->
+            let k' = (c', key_of m_in') in
+            let m_in_old' =
+              Hashtbl.find_opt cache_in k' |> Option.value ~default:D.bot
+            in
+            if not (D.leq m_in' m_in_old') then begin
+              Hashtbl.replace cache_in k' (D.join m_in_old' m_in');
+              changed := true;
+            end;
+            Hashtbl.find_opt cache_out k' |> Option.value ~default:D.bot)
+          c m_in
+      in
+      Format.printf "  OUT: %a\n" Adom.Mem.pp (Obj.magic m_out);
+      let m_out_old =
+        Hashtbl.find_opt cache_out k |> Option.value ~default:D.bot
+      in
+      if not (D.leq m_out m_out_old) then begin
+        Hashtbl.replace cache_out k (D.widen m_out_old m_out);
+        changed := true;
+      end);
+  done;
+  step
+    (fun c' m_in' ->
+      let k' = (c', key_of m_in') in
+      Hashtbl.find_opt cache_out k' |> Option.value ~default:D.bot)
+    c0 m_in0
+
+(*
+let solve (type b) ~(d : b d) ~(key_of : b -> 'c)
     (step : ('a -> b -> b) -> 'a -> b -> b) (c : 'a) (m : b) : b =
   let module D = (val d) in
   let cache_in = Hashtbl.create 17 in
   let cache_out = Hashtbl.create 17 in
   let deps_tbl = Hashtbl.create 17 in
-  let rec loop todos =
-    if List.length todos = 0 then ()
-    else
-      let new_todos = ref [] in
-      List.iter
-        (fun ((c, _) as k) ->
-          let m_in =
-            Hashtbl.find_opt cache_in k |> Option.value ~default:D.bot
-          in
-          (* Format.printf "  IN: %a\n" Adom.Mem.pp m_in; *)
-          let m_out =
-            step
-              (fun c' m_in' ->
-                let k' = (c', key_of m_in') in
-                let m_in_old =
-                  Hashtbl.find_opt cache_in k' |> Option.value ~default:D.bot
-                in
-                let m_out_old =
-                  Hashtbl.find_opt cache_out k' |> Option.value ~default:D.bot
-                in
-                if not (D.leq m_in' m_in_old) then (
-                  new_todos := k' :: !new_todos;
-                  (if k' <> k then
-                     let deps =
-                       Hashtbl.find_opt deps_tbl k' |> Option.value ~default:[]
-                     in
-                     Hashtbl.replace deps_tbl k'
-                       (k :: deps |> List.sort_uniq compare));
-                  Hashtbl.replace cache_in k' (D.widen m_in_old m_in'));
-                m_out_old)
-              c m_in
-          in
-          let m_out_old =
-            Hashtbl.find_opt cache_out k |> Option.value ~default:D.bot
-          in
-          if not (D.leq m_out m_out_old) then (
-            Hashtbl.replace cache_out k (D.join m_out_old m_out);
-            new_todos :=
-              (Hashtbl.find_opt deps_tbl k |> Option.value ~default:[])
-              @ !new_todos))
-        todos;
-      loop (!new_todos |> List.sort_uniq compare)
-  in
+  let todos = Queue.create () in
   let k = (c, key_of m) in
+  Queue.add k todos;
   Hashtbl.replace cache_in k m;
-  loop [ k ];
+  while not (Queue.is_empty todos) do
+    let (c, _) as k = Queue.pop todos in
+    let m_in =
+      Hashtbl.find_opt cache_in k |> Option.value ~default:D.bot
+    in
+    (* Format.printf "  IN: %a\n" Adom.Mem.pp m_in; *)
+    let m_out =
+      step
+        (fun c' m_in' ->
+          let k' = (c', key_of m_in') in
+          let m_in_old' =
+            Hashtbl.find_opt cache_in k' |> Option.value ~default:D.bot
+          in
+          if not (D.leq m_in' m_in_old') then begin
+            Queue.add k' todos;
+            Hashtbl.replace cache_in k' (D.widen m_in_old' m_in');
+            let deps =
+              Hashtbl.find_opt deps_tbl k' |> Option.value ~default:[]
+            in
+            Hashtbl.replace deps_tbl k'
+              (k :: deps |> List.sort_uniq compare);
+          end;
+          Hashtbl.find_opt cache_out k' |> Option.value ~default:D.bot)
+        c m_in
+    in
+    let m_out_old =
+      Hashtbl.find_opt cache_out k |> Option.value ~default:D.bot
+    in
+    if not (D.leq m_out m_out_old) then begin
+      Hashtbl.replace cache_out k (D.join m_out_old m_out);
+      Hashtbl.find_opt deps_tbl k
+      |> Option.value ~default:[]
+      |> List.to_seq
+      |> Queue.add_seq todos;
+    end
+  done;
   Hashtbl.find_opt cache_out k |> Option.value ~default:D.bot
+  *)
 
 let mk_key (type a) () : (a -> int) * (int -> a) =
   let tbl = Hashtbl.create 17 in

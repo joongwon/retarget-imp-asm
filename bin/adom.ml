@@ -17,6 +17,7 @@ module Val = struct
 
   let bot : t = Bot
   let abstract (v : S.Val.t) : t = Intv (Fin v, Fin v)
+  let intv (l : int) (u : int) : t = Intv (Fin l, Fin u)
 
   let join (i1 : t) (i2 : t) : t =
     match (i1, i2) with
