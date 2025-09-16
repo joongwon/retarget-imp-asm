@@ -19,6 +19,7 @@ module Val = struct
   let abstract (v : S.Val.t) : t = Intv (Fin v, Fin v)
   let intv (l : int) (u : int) : t = Intv (Fin l, Fin u)
 
+  (*
   let join (i1 : t) (i2 : t) : t =
     match (i1, i2) with
     | Bot, i | i, Bot -> i
@@ -34,6 +35,7 @@ module Val = struct
           | Fin n1, Fin n2 -> Fin (max n1 n2)
         in
         Intv (l, u)
+        *)
 
   let widen (iold : t) (inew : t) : t =
     match (iold, inew) with
@@ -41,19 +43,17 @@ module Val = struct
     | Intv (l1, u1), Intv (l2, u2) ->
         let l =
           match (l1, l2) with
-          | Inf, _ -> Inf
-          | Fin n1, Fin n2 when n2 < n1 -> Inf
-          | Fin n1, Fin _ -> Fin n1
-          | Fin _, Inf -> Inf
+          | Inf, _ | _, Inf -> Inf
+          | Fin n1, Fin n2 -> if n2 < n1 then Inf else Fin n1
         in
         let u =
           match (u1, u2) with
-          | Inf, _ -> Inf
-          | Fin n1, Fin n2 when n2 > n1 -> Inf
-          | Fin n1, Fin _ -> Fin n1
-          | Fin _, Inf -> Inf
+          | Inf, _ | _, Inf -> Inf
+          | Fin n1, Fin n2 -> if n2 > n1 then Inf else Fin n1
         in
         Intv (l, u)
+
+  let join = widen
 
   let meet (i1 : t) (i2 : t) : t =
     match (i1, i2) with
@@ -71,24 +71,27 @@ module Val = struct
         in
         match (l, u) with Fin n1, Fin n2 when n1 > n2 -> Bot | _ -> Intv (l, u))
 
+  (* order of CPO *)
   let leq (i1 : t) (i2 : t) : bool =
-    match (i1, i2) with
+    let r = match (i1, i2) with
     | Bot, _ -> true
     | _, Bot -> false
     | Intv (l1, u1), Intv (l2, u2) ->
-        let lower_ok =
+        let lower =
           match (l1, l2) with
-          | Inf, _ -> true
-          | Fin _, Inf -> false
-          | Fin n1, Fin n2 -> n2 <= n1
+          | _, Inf -> true
+          | Inf, Fin _ -> false
+          | Fin n1, Fin n2 -> n1 >= n2
         in
-        let upper_ok =
+        let upper =
           match (u1, u2) with
-          | Inf, _ -> true
-          | Fin _, Inf -> false
+          | _, Inf -> true
+          | Inf, Fin _ -> false
           | Fin n1, Fin n2 -> n1 <= n2
         in
-        lower_ok && upper_ok
+        lower && upper
+    in
+    r
 
   module Op = struct
     let add (i1 : t) (i2 : t) : t =
@@ -195,9 +198,11 @@ module Mem = struct
   let abstract (m : S.Mem.t) : t = Some (List.map Val.abstract m)
 
   let join (m1 : t) (m2 : t) : t =
-    match (m1, m2) with
+    let r = match (m1, m2) with
     | None, m | m, None -> m
     | Some m1, Some m2 -> Some (List.map2 Val.join m1 m2)
+    in
+    r
 
   let widen (mold : t) (mnew : t) : t =
     match (mold, mnew) with
@@ -207,10 +212,12 @@ module Mem = struct
   let bot : t = None
 
   let leq (m1 : t) (m2 : t) : bool =
-    match (m1, m2) with
+    let r = match (m1, m2) with
     | None, _ -> true
     | _, None -> false
     | Some m1, Some m2 -> List.for_all2 Val.leq m1 m2
+    in
+    r
 
   module Op = struct
     let read (m : t) (addr : Val.t) : Val.t =

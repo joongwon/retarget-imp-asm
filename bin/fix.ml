@@ -1,3 +1,5 @@
+type 'a trfun = 'a -> 'a
+
 module type D = sig
   type t
 
@@ -17,34 +19,31 @@ let solve (type b) ~(d : b d) ~(key_of : b -> 'c)
   let k = (c0, key_of m_in0) in
   Hashtbl.replace cache_in k m_in0;
   let changed = ref true in
-  while
-    !changed
-  do
+  while !changed do
     changed := false;
-    cache_in |> Hashtbl.iter (fun ((c, _) as k) m_in ->
-      Format.printf "  IN: %a\n" Adom.Mem.pp (Obj.magic m_in);
-      let m_out =
-        step
-          (fun c' m_in' ->
-            let k' = (c', key_of m_in') in
-            let m_in_old' =
-              Hashtbl.find_opt cache_in k' |> Option.value ~default:D.bot
-            in
-            if not (D.leq m_in' m_in_old') then begin
-              Hashtbl.replace cache_in k' (D.join m_in_old' m_in');
-              changed := true;
-            end;
-            Hashtbl.find_opt cache_out k' |> Option.value ~default:D.bot)
-          c m_in
-      in
-      Format.printf "  OUT: %a\n" Adom.Mem.pp (Obj.magic m_out);
-      let m_out_old =
-        Hashtbl.find_opt cache_out k |> Option.value ~default:D.bot
-      in
-      if not (D.leq m_out m_out_old) then begin
-        Hashtbl.replace cache_out k (D.widen m_out_old m_out);
-        changed := true;
-      end);
+    cache_in
+    |> Hashtbl.iter (fun ((c, _) as k) m_in ->
+           Format.printf "  IN: %a\n" Adom.Mem.pp (Obj.magic m_in);
+           let m_out =
+             step
+               (fun c' m_in' ->
+                 let k' = (c', key_of m_in') in
+                 let m_in_old' =
+                   Hashtbl.find_opt cache_in k' |> Option.value ~default:D.bot
+                 in
+                 if not (D.leq m_in' m_in_old') then (
+                   Hashtbl.replace cache_in k' (D.join m_in_old' m_in');
+                   changed := true);
+                 Hashtbl.find_opt cache_out k' |> Option.value ~default:D.bot)
+               c m_in
+           in
+           Format.printf "  OUT: %a\n" Adom.Mem.pp (Obj.magic m_out);
+           let m_out_old =
+             Hashtbl.find_opt cache_out k |> Option.value ~default:D.bot
+           in
+           if not (D.leq m_out m_out_old) then (
+             Hashtbl.replace cache_out k (D.widen m_out_old m_out);
+             changed := true))
   done;
   step
     (fun c' m_in' ->

@@ -14,7 +14,9 @@ let run c =
   with
   | Env.Error e -> Format.printf "%a\n" Env.report_error e; failwith "Code generation failed"
 
-let antp_ms1_step aval_c_cache =
+let antp_ms1_step : (S.Pgm.cmd -> (Mem.t -> Mem.t) code) -> S.Pgm.cmd -> (Mem.t -> Mem.t) code
+    =
+ fun aval_c_cache ->
   let open Adom in
   let rec aval_e (e : S.Pgm.exp) (m : Mem.t code) : Val.t code =
     let m = genlet ~name:"m" m in
